@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Activity, Globe2, LogOut, Search, Sparkles, Users } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Input } from '../../components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { formatDate } from '@/lib/utils'
 
 export default function AdminDashboardPage() {
   const { dictionary } = useLanguage()
@@ -43,11 +51,21 @@ export default function AdminDashboardPage() {
     const term = search.trim().toLowerCase()
     if (!term) return rows
     return rows.filter((row) =>
-      [row.full_name, row.email, row.country, row.tournament]
+      [row.full_name, row.email, row.country, row.tournament, row.hotel]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
     )
   }, [rows, search])
+
+  const stats = useMemo(() => {
+    const countries = new Set(rows.map((row) => row.country).filter(Boolean)).size
+    const latest = rows[0]?.created_at ? formatDate(rows[0].created_at) : '-'
+    return [
+      { label: dictionary.totalRegistrations, value: rows.length, icon: Users },
+      { label: 'Countries', value: countries, icon: Globe2 },
+      { label: 'Latest entry', value: latest, icon: Activity },
+    ]
+  }, [rows, dictionary.totalRegistrations])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -55,72 +73,102 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="container dashboard-shell">
-        <div className="dashboard-topbar">
+    <div className="min-h-screen bg-background px-4 py-8">
+      <div className="container space-y-6">
+        <div className="flex flex-col gap-4 rounded-[32px] border border-white/10 bg-slate-950/70 p-6 shadow-soft lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1>{dictionary.dashboardTitle}</h1>
-            <p>{dictionary.dashboardSubtitle}</p>
-          </div>
-          <div className="dashboard-actions">
-            <LanguageSwitcher />
-            <button className="secondary-button" type="button" onClick={handleSignOut}>{dictionary.signOut}</button>
-          </div>
-        </div>
-
-        <div className="stats-grid">
-          <article className="stat-card">
-            <span>{dictionary.totalRegistrations}</span>
-            <strong>{rows.length}</strong>
-          </article>
-          <article className="stat-card">
-            <span>{dictionary.filters}</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" />
-          </article>
-        </div>
-
-        <section className="table-card">
-          <div className="table-head">
-            <h2>{dictionary.latestEntries}</h2>
-          </div>
-
-          {loading ? (
-            <p>Loading...</p>
-          ) : filteredRows.length === 0 ? (
-            <p>{dictionary.noRows}</p>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>{dictionary.firstName}</th>
-                    <th>{dictionary.lastName}</th>
-                    <th>{dictionary.email}</th>
-                    <th>{dictionary.country}</th>
-                    <th>{dictionary.tournament}</th>
-                    <th>{dictionary.hotel}</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row) => (
-                    <tr key={row.id}>
-                      <td>{row.id.slice(0, 8)}</td>
-                      <td>{row.first_name}</td>
-                      <td>{row.last_name}</td>
-                      <td>{row.email}</td>
-                      <td>{row.country}</td>
-                      <td>{row.tournament}</td>
-                      <td>{row.hotel || '-'}</td>
-                      <td>{new Date(row.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-3">
+              <Badge>Realtime Dashboard</Badge>
+              <Badge variant="secondary">Supabase</Badge>
             </div>
-          )}
-        </section>
+            <h1 className="mt-4 font-display text-4xl font-bold text-white">{dictionary.dashboardTitle}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">{dictionary.dashboardSubtitle}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <LanguageSwitcher />
+            <Button variant="secondary" onClick={handleSignOut} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              {dictionary.signOut}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_1.3fr]">
+          {stats.map((item) => {
+            const Icon = item.icon
+            return (
+              <motion.div key={item.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className="h-full rounded-[28px] border-white/10 bg-white/[0.03]">
+                  <CardContent className="flex h-full items-center gap-4 p-5">
+                    <div className="rounded-2xl bg-primary/10 p-3 text-primary"><Icon className="h-5 w-5" /></div>
+                    <div>
+                      <p className="text-sm text-slate-400">{item.label}</p>
+                      <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )
+          })}
+          <Card className="rounded-[28px] border-white/10 bg-gradient-to-r from-primary/10 via-transparent to-cyan-500/10">
+            <CardContent className="flex h-full flex-col justify-center gap-4 p-5">
+              <div className="flex items-center gap-3 text-primary"><Sparkles className="h-5 w-5" /> Search registrations instantly</div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-10" placeholder="Search by player, email, country, tournament..." />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="rounded-[32px] border-white/10 bg-slate-950/70">
+          <CardHeader>
+            <CardTitle>{dictionary.latestEntries}</CardTitle>
+            <CardDescription>Responsive table built with reusable UI primitives and fed by Supabase realtime subscriptions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-8 text-center text-slate-300">Loading registrations...</div>
+            ) : filteredRows.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-8 text-center text-slate-300">{dictionary.noRows}</div>
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/40">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>{dictionary.firstName}</TableHead>
+                        <TableHead>{dictionary.lastName}</TableHead>
+                        <TableHead>{dictionary.email}</TableHead>
+                        <TableHead>{dictionary.country}</TableHead>
+                        <TableHead>{dictionary.tournament}</TableHead>
+                        <TableHead>{dictionary.hotel}</TableHead>
+                        <TableHead>{dictionary.message}</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-mono text-xs text-slate-400">{row.id.slice(0, 8)}</TableCell>
+                          <TableCell>{row.first_name}</TableCell>
+                          <TableCell>{row.last_name}</TableCell>
+                          <TableCell>{row.email}</TableCell>
+                          <TableCell>{row.country}</TableCell>
+                          <TableCell><Badge variant="secondary">{row.tournament}</Badge></TableCell>
+                          <TableCell>{row.hotel || '-'}</TableCell>
+                          <TableCell className="max-w-[240px] truncate text-slate-300">{row.message || '-'}</TableCell>
+                          <TableCell className="text-slate-300">{formatDate(row.created_at)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

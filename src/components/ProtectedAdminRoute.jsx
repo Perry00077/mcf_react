@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { LoaderCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 export default function ProtectedAdminRoute({ children }) {
@@ -8,7 +9,7 @@ export default function ProtectedAdminRoute({ children }) {
   useEffect(() => {
     let ignore = false
 
-    async function check() {
+    async function checkAccess() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session?.user) {
@@ -27,14 +28,21 @@ export default function ProtectedAdminRoute({ children }) {
       }
     }
 
-    check()
+    checkAccess()
     return () => {
       ignore = true
     }
   }, [])
 
   if (state.loading) {
-    return <div className="center-screen">Loading...</div>
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-slate-200">
+          <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+          Checking admin access...
+        </div>
+      </div>
+    )
   }
 
   if (!state.allowed) {

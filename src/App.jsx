@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import LandingPage from './pages/public/LandingPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
@@ -11,11 +11,11 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route
         path="/admin"
-        element={
+        element={(
           <ProtectedAdminRoute>
             <AdminDashboardPage />
           </ProtectedAdminRoute>
-        }
+        )}
       />
     </Routes>
   )

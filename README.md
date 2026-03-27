@@ -1,134 +1,85 @@
-# Medina Chess Festival - React + Vite + Supabase
+# Medina Chess Festival — React + Vite + Supabase
 
-This is a React + Vite rewrite of the original PHP project.
+This version includes:
+- Tailwind CSS
+- shadcn/ui-style component structure
+- Framer Motion animations
+- multilingual public site
+- Supabase registration flow
+- Supabase Auth admin area
+- optional Edge Function for emails via Resend
 
-## Architecture used
+## 1) Install everything
 
-I used a **frontend SPA architecture** with **React + Vite** and **Supabase as the backend platform**.
-
-### Layers
-
-1. **Presentation layer**
-   - React components
-   - responsive layout in `src/styles/global.css`
-   - multilingual UI using a language context and dictionary file
-
-2. **Application layer**
-   - route management with `react-router-dom`
-   - form state and admin auth flow in React pages/components
-   - language state in `src/contexts/LanguageContext.jsx`
-
-3. **Data layer**
-   - Supabase tables: `registrations`, `admin_users`
-   - Supabase Auth for admin login
-   - Supabase realtime subscription on the admin dashboard
-   - Row Level Security policies in `supabase_schema.sql`
-
-### Why this architecture
-
-- no PHP server is needed anymore
-- easy deployment on Vercel, Netlify, or Cloudflare Pages
-- Supabase handles database, auth, and realtime updates
-- admin access is safer because it uses Supabase Auth instead of a password hardcoded in the frontend
-
-## Main features included
-
-- responsive landing page
-- registration form saved to Supabase
-- admin login with Supabase Auth
-- protected admin dashboard
-- realtime registrations list
-- language switcher: FR / EN / DE / RU / AR
-- RTL support for Arabic
-
-## Step by step: make it work
-
-### 1. Install Node.js
-Install Node.js 20 or newer.
-
-### 2. Open the project
-```bash
-cd medina-chess-festival-react
-```
-
-### 3. Install dependencies
 ```bash
 npm install
 ```
 
-### 4. Create your `.env`
-Copy `.env.example` to `.env` and fill it:
+## 2) Configure environment variables
+
+Copy `.env.example` to `.env` and fill in your real values.
+
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env`:
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_SITE_NAME=Medina Chess Festival
-```
+Required frontend envs:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
 
-### 5. Create your Supabase project
-In Supabase:
-- create a new project
-- open the SQL editor
-- run the content of `supabase_schema.sql`
+Optional frontend env:
+- `VITE_ENABLE_REGISTRATION_EMAILS=false`
 
-### 6. Create the admin user in Supabase Auth
-In Supabase:
-- go to **Authentication > Users**
-- create a user with email and password
+Keep email sending disabled until the Edge Function works correctly.
 
-### 7. Add that admin user to `admin_users`
-Get the user id from Supabase Auth, then run this SQL:
-```sql
-insert into public.admin_users (id, email)
-values ('YOUR_AUTH_USER_UUID', 'admin@example.com');
-```
+## 3) Run the app
 
-### 8. Run the project locally
 ```bash
 npm run dev
 ```
-Open the URL shown by Vite, usually:
-```text
-http://localhost:5173
+
+## 4) Build for production
+
+```bash
+npm run build
 ```
 
-### 9. Test the public form
-- open the homepage
-- submit the registration form
-- check the `registrations` table in Supabase
+## 5) Supabase database setup
 
-### 10. Test the admin dashboard
-- go to `/admin/login`
-- sign in with the admin email/password created in Supabase Auth
-- if that user exists in `admin_users`, you can access `/admin`
+Run `supabase_schema.sql` in your Supabase SQL editor.
+Then create one admin user in Supabase Auth.
+Then insert that same user id into `public.admin_users`.
 
-## Deployment
+## 6) Optional email setup with Resend
 
-Because this is now a static React app, you can deploy it easily on:
-- Vercel
-- Netlify
-- Cloudflare Pages
+### A. Create a Resend API key
+Do not put it in the React frontend.
 
-### Vercel quick deploy
-1. Push the project to GitHub
-2. Import the repo into Vercel
-3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel environment variables
-4. Deploy
+### B. Add Supabase Function secrets
+In Supabase, add:
+- `RESEND_API_KEY`
+- `ADMIN_EMAIL`
+- `FROM_EMAIL`
 
-## Important note about security
+### C. Deploy the Edge Function
 
-The public registration form inserts directly into Supabase using the anonymous key. That is fine only if your RLS policies stay restrictive.
+```bash
+supabase functions deploy send-registration-email --no-verify-jwt
+```
 
-For stricter anti-spam protection later, move registration submission to:
-- a Supabase Edge Function, or
-- a backend API route
+### D. Turn on the frontend flag
+In `.env`:
 
-That would let you add:
-- server-side validation
-- stronger rate limiting
-- email sending
-- CAPTCHA verification
+```env
+VITE_ENABLE_REGISTRATION_EMAILS=true
+```
+
+## 7) Why the form has comments in code
+Important comments were added in:
+- `src/components/RegistrationForm.jsx`
+- `supabase/functions/send-registration-email/index.ts`
+
+Those comments explain:
+- the anti-spam honeypot field
+- when the optional email function is triggered
+- how to configure secrets safely
