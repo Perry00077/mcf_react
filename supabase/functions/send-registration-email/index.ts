@@ -1,188 +1,164 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL')
-const FROM_EMAIL = Deno.env.get('FROM_EMAIL')
+Deno.serve(async (req) => {
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  if (req.method !== "POST") {
+    return jsonResponse(
+      { success: false, error: "Method not allowed" },
+      405,
+    );
   }
 
   try {
-    if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Method not allowed' }),
-        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    const body = await req.json().catch(() => null);
+
+    const email = body?.email?.trim();
+    const fullName = body?.fullName?.trim() || "Utilisateur";
+
+    if (!email) {
+      return jsonResponse(
+        { success: false, error: "Email is required" },
+        400,
+      );
     }
 
-    if (!RESEND_API_KEY) {
-  return new Response(
-    JSON.stringify({ success: false, error: 'Missing RESEND_API_KEY secret' }),
-    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
+    const brevoApiKey = Deno.env.get("BREVO_API_KEY");
+    const senderEmail = Deno.env.get("BREVO_SENDER_EMAIL");
+    const senderName = Deno.env.get("BREVO_SENDER_NAME") || "ISET Assistant";
 
-if (!ADMIN_EMAIL) {
-  return new Response(
-    JSON.stringify({ success: false, error: 'Missing ADMIN_EMAIL secret' }),
-    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-if (!FROM_EMAIL) {
-  return new Response(
-    JSON.stringify({ success: false, error: 'Missing FROM_EMAIL secret' }),
-    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-    const body = await req.json()
-
-    const {
-      first_name,
-      last_name,
-      full_name,
-      email,
-      telephone,
-      country,
-      birth_date,
-      elo,
-      fide_id,
-      tournament,
-      hotel,
-      message,
-    } = body
-
-    if (!email || !first_name || !last_name || !country || !tournament) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Missing required fields',
-          received: { first_name, last_name, email, country, tournament }
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!brevoApiKey) {
+      return jsonResponse(
+        { success: false, error: "Missing BREVO_API_KEY secret" },
+        500,
+      );
     }
 
-    const safeFullName = full_name || `${first_name} ${last_name}`
+    if (!senderEmail) {
+      return jsonResponse(
+        { success: false, error: "Missing BREVO_SENDER_EMAIL secret" },
+        500,
+      );
+    }
 
-    const adminHtml = `
-      <h2>Nouvelle inscription</h2>
-      <p><strong>Nom complet:</strong> ${safeFullName}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Téléphone:</strong> ${telephone || '-'}</p>
-      <p><strong>Pays:</strong> ${country}</p>
-      <p><strong>Date de naissance:</strong> ${birth_date || '-'}</p>
-      <p><strong>ELO:</strong> ${elo || '-'}</p>
-      <p><strong>FIDE ID:</strong> ${fide_id || '-'}</p>
-      <p><strong>Tournoi:</strong> ${tournament}</p>
-      <p><strong>Hôtel:</strong> ${hotel || '-'}</p>
-      <p><strong>Message:</strong> ${message || '-'}</p>
-    `
+    const safeName = escapeHtml(fullName);
 
-    const playerHtml = `
-      <h2>Confirmation d'inscription</h2>
-      <p>Bonjour ${first_name} ${last_name},</p>
-      <p>Votre inscription a bien été reçue.</p>
-      <p><strong>Tournoi:</strong> ${tournament}</p>
-      <p><strong>Hôtel:</strong> ${hotel || '-'}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Pays:</strong> ${country}</p>
-      <p>Nous vous contacterons si nécessaire.</p>
-      <p>Cordialement,<br/>Medina Chess Festival</p>
-    `
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Confirmation d'inscription</title>
+        </head>
+        <body style="margin:0;padding:0;background:#f6f8fb;font-family:Arial,sans-serif;">
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+            <div style="background:#0f172a;padding:24px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;">ISET Assistant</h1>
+            </div>
 
-    const adminRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
+            <div style="padding:32px;">
+              <h2 style="margin-top:0;color:#111827;">Bienvenue ${safeName} 👋</h2>
+
+              <p style="color:#374151;font-size:16px;line-height:1.6;">
+                Votre inscription a bien été enregistrée.
+              </p>
+
+              <p style="color:#374151;font-size:16px;line-height:1.6;">
+                Vous pouvez maintenant accéder à la plateforme et profiter de ses fonctionnalités.
+              </p>
+
+              <div style="margin:24px 0;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+                <p style="margin:0;color:#111827;"><strong>Email :</strong> ${escapeHtml(email)}</p>
+              </div>
+
+              <p style="color:#6b7280;font-size:14px;line-height:1.6;">
+                Si vous n'êtes pas à l'origine de cette inscription, vous pouvez ignorer cet email.
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": brevoApiKey,
       },
       body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [ADMIN_EMAIL],
-        subject: 'Nouvelle inscription - Medina Chess Festival',
-        html: adminHtml,
+        sender: {
+          name: senderName,
+          email: senderEmail,
+        },
+        to: [
+          {
+            email,
+            name: fullName,
+          },
+        ],
+        subject: "Confirmation d'inscription",
+        htmlContent,
       }),
-    })
+    });
 
-    const adminText = await adminRes.text()
-    let adminData: unknown
-    try {
-      adminData = JSON.parse(adminText)
-    } catch {
-      adminData = adminText
-    }
+    const brevoData = await brevoResponse.json().catch(() => ({}));
 
-    if (!adminRes.ok) {
-      return new Response(
-        JSON.stringify({
+    if (!brevoResponse.ok) {
+      return jsonResponse(
+        {
           success: false,
-          step: 'admin_email',
-          resend_status: adminRes.status,
-          resend_data: adminData,
-          debug: { FROM_EMAIL, ADMIN_EMAIL }
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+          error: "Brevo request failed",
+          details: brevoData,
+        },
+        brevoResponse.status,
+      );
     }
 
-    const playerRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [email],
-        subject: 'Confirmation de votre inscription - Medina Chess Festival',
-        html: playerHtml,
-      }),
-    })
-
-    const playerText = await playerRes.text()
-    let playerData: unknown
-    try {
-      playerData = JSON.parse(playerText)
-    } catch {
-      playerData = playerText
-    }
-
-    if (!playerRes.ok) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          step: 'player_email',
-          resend_status: playerRes.status,
-          resend_data: playerData,
-          debug: { FROM_EMAIL, player_email: email }
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: true,
-        adminData,
-        playerData
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+        message: "Registration email sent successfully",
+        data: brevoData,
+      },
+      200,
+    );
   } catch (error) {
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
   }
-})
+});
+
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
